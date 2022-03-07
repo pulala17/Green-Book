@@ -1,6 +1,20 @@
 There is different use of randomization in verilog, system verilog and uvm
-
 ----------------------------------------------
+in Verilog.
+
+• $random()- //Flat distribution, returning signed 32-bit random
+• $urandom() -//Flat distribution, returning unsigned 32-bit random
+• $urandom_range() - //Flat distribution over a range
+• $dist_exponential () - //Exponential decay, as shown in Figure 6-1
+• $dist_normal () - //Bell-shaped distribution
+• $dist_poisson () - //Bell-shaped distribution
+• $dist_uniform () - //Flat distribution
+The $urandom_range () function takes two arguments, an optional low value, and a high value.
+  a = $urandom_range(3, 10) ; // Pick a value from 3 to 10
+  a = $urandom_range(10, 3) ; // Pick a value from 3 to 10
+  b = $urandom_range(5); // Pick a value from 0 to 5
+----------------------------------------------
+  
 Here is what noted in Chapter6 from Green-book.
 <--------------------------------------------->
 // Sample 6.1 Simple random class
@@ -218,12 +232,142 @@ class Unconstrained;
 endclass
 // There are eight possible solutions. Since there are no constraints, each has the same probability.
 
-------------------
-// Sample 6.25 Class with implication
+--------------------------------------
+// Sample 6.25 Probility
 class Imp1;
   rand bit x; // 0 or 1
   rand bit [1:0] y;  // 0, 1, 2, or 3
   constraint c_xy {  (x==O) -> y==O;  }  // if(x==0) y==0;
 endclass
+  // P(x==0, y==0)=1/2, P(x==0, y==1)=0, P(x==0, y==2)=0, P(x==0, y==3)=0, 
+  // P(x==1, y==0)=1/8, P(x==1, y==1)=1/8, P(x==1, y==2)=1/8, P(x==1, y==3)=1/8
+----------------------------------------
+//  Sample 6.27 Class with implication and sol ve ... before
+class SolveBefore;
+  rand bit x;
+  rand bit [1:0] y;
+  constraint c_xy { 
+     (x==O) -> y==O; 
+     solve x before y;
+  }
+endclass
+// The 'solve ... before' constraint does not change the solution space, just the probability of the results.
+// 'solve x before y': The solver chooses values of x (0, 1) with equal probability  
   
-                    
+------------------------------------------------
+//  At run-time. can use the built-in constraint_mode () routine to turn constraints on and off. 
+// can control a single constraint with 'handle.constraint.constraint_mode()'. 
+// To control all constraints in an object use 'handle.constraint_mode()'.
+  
+// Sample 6.28 Using constraint_mode
+class Packet;
+  rand int length;
+  constraint c_short {length inside {[1:32]}; }
+  constraint c_Iong  {length inside {[lOOO:l023]}; }
+endclass
+  
+Packet p;
+
+initial begin
+  p = new();
+  // Create a long packet by disabling short constraint
+  p.c_short.constraint_mode(O) ;  
+  assert (p.randomize());
+  transmit(p);
+  // Create a short packet by disabling all constraints
+  // then enabling only the short constraint
+  p.constraint_mode(O);
+  p.c_short.constraint_mode(l);
+  assert (p.randomize());
+  transmit(p) ;
+end
+  
+----------------------------
+// SystemVerilog allows to add an extra constraint using 'randomize () with'
+// Sample 6.30 The randomize () with statement
+class Transaction;
+  rand bit [31:0] addr, data;
+  constraint c1 {addr inside{[0:100], [1000:2000]};}
+endclass
+Transaction t;
+  
+initial begin
+  t = new();
+  
+  // addr is 50-100, 1000-1500, data < 10
+  assert ( t.randomize() with {addr >= 50;  addr <= 1500;  data < 10;} );
+  driveBus(t);
+  
+  // force addr to a specific value, data> 10
+  assert (t.randomize () with {addr == 2000; data> 10;});
+  driveBus(t);
+end  
+// SystemVerilog uses the scope of the class. That is why Sample 6.30 used just addr, not t.addr.
+  
+-----------------------------------------------------------------------------------------------
+//  set some nonrandom class variables (such as limits or weights) before randomization starts, or you may need to calculate the error correction bits for random data.
+// System Verilog lets you do this with two special void functions, 'pre_randomize' and 'post_randomize'.
+// Sample 6.31 Building a bathtub distribution
+class Bathtub;
+  int value; // Random variable with bathtub dist
+  int WIDTH = 50, DEPTH=4, seed=l;
+  function void pre_randomize();
+    // Calculate an exponental curve
+    value = $dist_exponential (seed, DEPTH);
+    if (value > WIDTH)  value = WIDTH;
+    // Randomly put this point on the left or right curve
+    if ($urandom_range(l))  value = WIDTH - value;
+  endfunction
+endclass
+  
+--------------------------------------------------
+//  Sample 6.33 Constraint with a variable bound
+class bounds;
+  rand int size;
+  int max size = 100;
+  constraint c_size { size inside {[l:max_sizel}; }
+endclass
+
+// Sample 6.34 dist constraint with variable weights
+typedef enum (READ8, READ16, READ32) read e;
+class ReadCommands;
+  rand read_e read_cmd;
+  int read8_wt=1, read16_wt=1, read32_wt=1;
+  constraint c_read {
+    read cmd dist {
+       READ8 := read8_wt,
+      READ16 := read16_wt,
+      READ32 := read32_wt};
+  }
+endclass
+                                    
+-------------------------------------------  
+// Sample 6.35 rand_mode disables randomization of variables
+// Packet with variable length payload
+class Packet;
+  rand bit [7:0] length, payload[];
+  constraint c valid {length > 0;
+                      payload.size() == length; }
+  function void display(string msg);
+    $display ("\n%s ", msg);
+    length;}
+    $write("Packet len=%Od, payload size=%Od", length, payload.size());
+    for (int i=O; (i<4 && i<payload.size() ); i++)
+      $write("%Od", payload[i]);
+    $display;
+  endfunction
+endclass
+Packet p;
+initial begin
+  p = new () ;
+  assert (p.randomize());    // Randomize all variables
+  p.display("Simple randomize");
+  p.length.rand_mode (0) ;   // Make length nonrandom,
+  p.length = 42;             // set it to a constant value
+  assert (p.randomize());    //then randomize the payload
+  p.display("Randomize with rand_mode");
+end  
+  
+  
+  
+  
