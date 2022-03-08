@@ -320,7 +320,7 @@ class Bathtub;
   endfunction
 endclass
   
---------------------------------------------------
+----------------------------------------------------------------
 //  Sample 6.33 Constraint with a variable bound
 class bounds;
   rand int size;
@@ -341,7 +341,7 @@ class ReadCommands;
   }
 endclass
                                     
--------------------------------------------  
+---------------------------------------------------------------------------  
 // Sample 6.35 rand_mode disables randomization of variables
 // Packet with variable length payload
 class Packet;
@@ -367,7 +367,220 @@ initial begin
   assert (p.randomize());    //then randomize the payload
   p.display("Randomize with rand_mode");
 end  
+
+----------------------------------------------------------------------------
+// Call 'handle.randomize(null)' and System Verilog treats all variables as nonrandom ("state variables") and just ensures that all constraints are satisfied.  
+----------------------------------------------------------------------------
+// Sample 6.36 Randomizing a subset of variables in a class
+class Rising;
+  byte low;           // not random
+  rand byte med, hi;  // random variable
+  constraint up { low < med; med < hi; } 
+endclass
+initial begin
+  Rising r;
+  r = new () ;
+  r.randomize() ;        //Randomize med, hi; low untouched
+  r.randomize(med) ;     //Randomize only med
+  r.randomize(low);      //Randomize only low
+end
+--------------------------------------------------------------------------
+// Sample 6.37 Using the implication constraint as a case statement
+class Instruction;
+  typedef enum {NOP, HALT, CLR, NOT} opcode_e;
+  rand opcode_e opcode;
+  bit [1:0] n_operands;
+  constraint c_operands {
+    if (n_operands == 0)        opcode == NOP || opcode == HALT;
+    else if (n_operands == 1)   opcode == CLR || opcode == NOT;
+    .........
+  }
+endclass
+---------------------------------------------------------------------------
+// Sample 6.38 Turning constraints on and otT with constraint_mode
+class Instruction;
+  rand opcode_e opcode;
+  constraint c_no_operands { opcode == NOP || opcode == HALT;}
+  constraint c_one_operand { opcode == CLR || opcode == NOT;}
+endclass
+Instruction instr;
+initial begin
+  instr = new () ;
+  // Generate an instruction with no operands
+  instr.constraint_mode(O); // Turn off all constraints
+  instr.c_no_operands.constraint_mode(l);
+  assert (instr.randomize());
+  // Generate an instruction with one operand
+  instr.constraint_mode(O); // Turn off all constraints
+  instr.c_one_operand.constraint_mode(l);
+  assert (instr.randomize());
+end
+--------------------------------------------------------------------                                    
+// Sample 6.39 Class with an external constraint
+// packet.sv
+class Packet;
+  rand bit [7:0] length;
+  rand bit [7:0] payload[];
+  constraint c_valid {length> 0;
+                      payload.size () == length; }
+  constraint c_external;
+endclass
+// Program defining an external constraint
+// test.sv
+program test;
+  constraint Packet::c_external {length == l;}
+endprogram     
+
+//External constraints can be put in a file and thus reused between tests                                    
+----------------------------------------------------------------------------
+// Sample 6,44 Constraining dynamic array size
+class dyn_ size;
+  rand logic [31:0] d[];
+  constraint d_size { d.size() inside {[1:10]}; }
+endclass
+// Using the 'inside' constraint lets you set a lower and upper boundary on the array size. 
+// In many cases you may not want an empty array. that is .size==O. 
+------------------------------------------------------------------------                                                                  
+// Sample 6.45 Random strobe pattern class
+parameter MAX_TRANS FER_LEN = 10;
+class StrobePat;
+  rand bit strobe[MAX TRANSFER_LEN];
+  constraint c_set_four { strobe.sum() == 4'h4; }
+endclass
+
+initial begin
+  StrobePat sp;
+  int count = 0; // Index into data array
+  sp = new();
+  assert (sp.randomize());
+  foreach (sp.strobe[i]) begin
+    @bus.cb;
+    bus.cb.strobe <= sp.strobe[i]; 
+    //If strobe is enabled, drive out next data word
+    if (sp.strobe[i]) bus.cb.data <= data[count++];
+  end  
+end
+----------------------------------------------------------
+// Sample 6.55 Simple foreach constraint: good_sumS
+class good_sumS;
+  rand uint len[];
+  constraint c len {foreach (len[i])  len[i] inside {[1:255]};
+                    len.sum < 1024;
+                    len.size() inside {[1:8]};  } 
+endclass
+
+// Sample 6.57 Creating ascending array values with foreach
+class Ascend;
+  rand uint d[lO] ;
+  constraint c {
+    foreach (d[i])      //For every element
+      if (i>0)          // except the first
+        d[i] > d[i-l]; // compare with previous element
+  }
+endclass 
+
+---------------------------------------------------------                                    
+// Sample 6.58 Creating unique array of random unique values with foreach
+class UniqueSlow;
+  rand bit [7:0] ua[64];
+  constraint c {
+    foreach (ua[i])  // for every elements
+      foreach (ua[j])
+        if (i != j)
+          ua [i] ! = ua [j] ;
+endclass
+
+//  Sample 6.59 Creating unique array values with a rande helper class
+class randc8;
+  randc bit [7:0] val;
+endclass
+class LittleUniqueArray;
+  bit [7:0] ua [64]; // Array of unique values
+  function void pre_randomize;
+    randc8 re8;
+    re8 = new();
+    foreach (ua[i]) begin
+      assert(rcS.randomize());
+      ua[i] = rc8.val;
+    end
+  endfunction
+endclass
+                               
+//Sample 6.60 Unique value generator
+    // Create unique random values in a range (0:max-l)
+class RandcRange;
+  randc bit [15:0] value;
+  int max_value; // Maximum possible value
+  function new(int max_value = 10);
+    this.max_value = max_value;
+  endfunction
+  constraint c_max_value {value < max_value;}
+endclass                                    
+
+// Sample 6.61 Class to generate a random array of unique values
+class UniqueArray;
+  int max_array_size, max_value;
+  rand bit [7:0]a[]; // Array of unique values
+  constraint c_size {a.size() inside { [1:max_array_size]}; }
   
+  function new(int max_array_size=2, max_value=2);
+    this.max_array_size = max_array_size;
+    // If max_value is smaller than array size, array could have duplicates, so adjust max value
+    if (max_value < max_array_size)  this.max_value = max_array_size;
+    else  this.max_value = max_value;
+  endfunction
   
+  // Array a[] allocated in randomize(), fill w/unique vals
+  function void post_randomize;
+    RandcRange rr;
+    rr = new(max_value);
+    foreach (a[i]) begin
+      assert (rr.randomize());
+      a[i] = rr.value;
+    end
+  endfunction
   
-  
+  function void display() ;
+    $write("Size: %3d:", a.size());
+    foreach (a[i]) $write("%4d", a[i]);
+    $display;
+  endfunction
+endclass
+    
+// Using the UniqueArray class
+program automatic test;
+  UniqueArray ua;
+  initial begin
+    ua = new (50) ; // Array size 50
+    repeat (10) begin
+      assert(ua.randomize()); //Create random array
+      ua.display(); //Display values
+    end
+  end
+endprogram
+
+--------------------------------------------------
+// Sample 6.63 Constructing elements in a random array, use dynamic array of handles
+parameter MAX_SIZE = 10;
+class RandStuff;
+  rand int value;
+endclass
+    
+class RandArray;
+  rand RandStuff array[]; 
+  constraint c {array.size() inside {[l:MAX_SIZE]}; }
+  function new();
+    array = new[MAX_SIZE] ;
+    foreach (array[i])  array[i] = new();
+  endfunction;
+endclass
+    
+RandArray ra;
+initial begin
+  ra = new();              // Construct array and all objects
+  assert(ra.randomize()) ; // Randomize and maybe shrink array
+  foreach (ra.array[i])  $display(ra.array[i].value);
+end   
+
+    
+    
