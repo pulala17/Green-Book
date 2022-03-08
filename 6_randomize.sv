@@ -605,3 +605,125 @@ task io_read_task;
 endtask
 // The code to generate the sequence is separate and a very different style from the classes with data and constraints used by the sequence.
 // if you use both randomize () and randsequence, you have to master two difTerent forms of randomization.    
+
+// Sample 6.65 Random control with randcase and $urandom_range
+initial begin
+  int len;
+  randcase
+    1: len = $urandom_range(0, 2);   //10%: 0,1,2
+    8: len = $urandom_range(3, 5);   //80%: 3,4,5
+    1: len = $urandom_range(6, 7);   //10%: 6,7
+  endcase
+  $display ("len=%Od", len);
+end   
+// constraint c {len dist { [0:2]:=1, [3:5]:=8, [6:7]:=1}; }    
+// choose the branches based on the weight    
+
+//Sample 6.67 Creating a decision tree with randcase
+initial begin
+  // Level 1
+  randcase
+    one_write_wt: do_one_write();
+    one_read_wt:  do_one_read();
+    seq_write_wt: do_seq_write();
+    seq_read_wt:  do_seq_read();
+  endcase
+end
+
+task do_one_write;
+  randcase
+    mem_write_wt: do_mem_write();
+    io_write_wt:  do_io_write();
+    cfg_write_wt: do_cfg_write();
+  endcase
+endtask
+    
+task do_one_read;
+  randcase
+    mem_read_wt: do_mem_read();
+    io_read_wt:  do_io_read();
+    cfg_read_wt: do_cfg_read();
+  endcase
+endtask
+
+-----------------------------------------------------
+//Sample 6.71 Ethernet switch configuration class
+class eth_cfg;
+  rand bit [ 3:0] in_use;        //ports used in test
+  rand bit [47:0] mac addr[4];   
+  rand bit [ 3:0] is_100;       //100mb mode
+  rand uint run_for_n_frames;
+
+  // Force some addr bits when running in unicast mode
+  constraint local_unicast {
+    foreach (mac_addr[i])   mac_addr[i][41:40] == 2'b00;
+  }
+  constraint reasonable { // Limit test length
+  run_for_n_frames inside {[1:100]};
+  }
+endclass : eth_cfg
+
+//Sample 6.72 Building environment with random configuration
+class Environment;
+  eth_cfg cfg;
+  eth_src gen[4];
+  eth_mii drv[4];
+  
+  function new() ;
+    cfg = new();  // Construct the cfg
+  endfunction
+  
+  function void gen_cfg;
+    assert(cfg.randomize()); // Randomize the cfg
+  endfunction
+  
+  // Use random configuration to build the environment
+  function void build();
+    foreach (gen[i])
+      if (cfg.in_use[i]) begin
+        gen [i] = new () ;
+        drv [i] = new () ;
+        if (cfg.is_100[i])  drv[i].set_speed(lOO);
+      end
+  endfunction
+  
+  task run();
+    foreach (gen[i])
+      if (cfg.in_use[i]) begin 
+        // Start the testbench transactors
+        gen[i].run();
+      end
+  endtask
+  
+  task wrap_up () ;
+    // Not currently used
+  endtask
+  
+endclass : Environment
+   
+// Sample 6.73 Simple test using random configuration
+program test;
+  Environment env;
+  initial begin
+    env = new();   // construct environment
+    env.gen_cfg;   // create random configuration
+    env.build();   // build the testbench environment
+    env.run();     // run the test
+    env.wrap_up() ; // clean up after test & report
+  end
+endprogram
+
+//Sample 6.74 Simple test that overrides random configuration
+program test;
+  Environment env;
+  initial begin
+    env = new(); // Construct environment
+    env.gen_cfg; // Create random configuration
+    // Override random in-use - turn all 4 ports on
+    env.cfg.in_use = 4'bllll;
+    env.build();   //build the testbench environment
+    env.run();     // run test
+    env.wrap_up(); //clean up after test & report
+  end
+endprogram
+
