@@ -582,5 +582,26 @@ initial begin
   foreach (ra.array[i])  $display(ra.array[i].value);
 end   
 
-    
-    
+---------------------------------------------------------------    
+// Sample 6.64 Command generator using randsequence
+initial begin
+  for (int i=0; i<15; i++) begin
+    randsequence(stream)
+      stream  :    cfg_read := 1 | io_read := 2 | mem_read := 5;
+    cfg_read: {cfg_read_task;} | {cfg_read_task;} cfg_read;  //A 'cfg_read' can be either a single call to the 'cfg_read_task', or a call to the task followed by another 'cfg_read'.
+      mem_read: {mem_read_task;} | {mem_read_task;} mem_read;
+      io_read :  {io_read_task;} | {io_read_task;} io_read;
+    endsequence
+  end // for
+end
+task cfg_read_task;
+  ...
+endtask
+task mem_read_task;
+  ...
+endtask
+task io_read_task;
+  ...
+endtask
+// The code to generate the sequence is separate and a very different style from the classes with data and constraints used by the sequence.
+// if you use both randomize () and randsequence, you have to master two difTerent forms of randomization.    
