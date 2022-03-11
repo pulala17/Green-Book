@@ -1,4 +1,3 @@
-
 // Sample 7.1 Interaction ofbegin ... end and fork ... join
 initial begin
   $display("@%0t: start fork ... join example", $time);
@@ -413,15 +412,121 @@ endprogram
 //      in SV, the second request get(1), sneaks ahead of earlier get(2), bypassing the FIFO ordering
 -------------------------------------------------------------------------------------           
 //MAILBOX           
+// like a FIFO. with a source and sink. 
+// The source puts data into the mailbox, and the sink gets values from the mailbox.           
+// a mailbox is an object           
            
+//Sample 7.32 Good generator creates many objects
+task generator_good(int n, mailbox mbx) ;
+  Transaction t;
+  repeat(n) begin
+    t = new();              // Create a new transaction
+    assert(t.randomize()); // Randomize variables
+    $display ("GEN: Sending addr=%h", t.addr) ;
+    mbx.put(t);            // Send transaction to driver
+  end
+endtask          
+
+//  Sample 7.33 Good driver receives transactions from mailbox
+task driver (mailbox mbx);
+  Transaction t;
+  forever begin
+    mbx.get(t); // Get transacton from mailbox
+    $display("DRV: Received addr=%h", t.addr);   // Drive transaction into DUT
+  end
+endtask
            
-           
-           
-           
-           
+    // try_get() and try_peek() functions. 
+    // if they are successful, return a nonzero value; otherwise they reture 0
     
+// Sample 7.34 Exchanging objects using a mailbox: the Generator class
+class Generator;
+  Transaction tr;
+  mailbox mbx;
+  
+  function new(mailbox mbx);
+    this.mbx = mbx;
+  endfunction
+  
+  task run(int count);
+    repeat (count) begin
+      tr = new();
+      assert(tr.randomize);
+      mbx.put(tr); // Send out transaction
+    end
+  endtask
+endclass    
     
+// Sample 7.35 Exchanging objects using a mailbox: the Driver class
+class Driver;
+  Transaction tr;
+  mailbox mbx;
+  
+  function new (mailbox mbx) ;
+    this.mbx = mbx;
+  endfunction
+  
+  task run(int count);
+    repeat (count) begin
+      mbx.get(tr);     // Fetch next transaction
+      @(posedge bus.cb.ack);
+      bus.cb.kind <= tr.kind;
+      ...
+    end
+  endtask
+endclass    
     
+// Sample 7.36 Exchanging objects using a mailbox: the program block
+program automatic mailbox_example(bus_if.TB bus, ...);
+  'include "transaction.sv"
+  'include "generator.sv"
+  'include "driver.sv"
+  
+  mailbox mbx;         // mailbox connecting generator & driver
+  Generator gen;
+  Driver drv;
+  int count;
+  
+  initial begin
+    count = $urandom_range(50);
+    mbx = new();    // Construct the mailbox
+    gen = new(mbx); // Construct the generator
+    drv = new(mbx); // Construct the driver
+    fork
+      gen.run(count) ;  // spawn the generator
+      drv.run(count) ;  // spawn the driver
+    join                // wait for both to finish
+  end
+endprogram
+
+//Sample 7.37 Bounded mailbox
+'timescale 1ns/1ns
+program automatic bounded;
+  mailbox mbx;
+  initial begin
+    mbx = new(1); // Mailbox size = 1
+    fork
+      
+      // Producer thread
+      for (int i=1; i<4; i++) begin
+        $display("Producer: before put(%0d)", i);
+        mbx.put(i) ;
+        $display("Producer: after put(%0d)", i);
+      end
+      
+      // Consumer thread
+      repeat(4) begin
+        int j;
+        #1ns mbx.get(j);
+        $display("Consumer: after get(%0d)", j);
+      end
+      
+    join
+  end
+endprogram
+// default mailbox size is 0, which creates an unbounded mailbox;
+// any size greater than 0 creates a bounded mailbox.
+// the bounded mailbox acts as a buffer between the 2 processes.    
     
     
     
