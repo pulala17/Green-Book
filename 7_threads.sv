@@ -528,6 +528,264 @@ endprogram
 // any size greater than 0 creates a bounded mailbox.
 // the bounded mailbox acts as a buffer between the 2 processes.    
     
+--------------------------------------------------------------------
+// handshake
+// Sample 7.39 Producer-consumer without synchronization 
+// the producer runs to completion before the consumer even starts    
+program automatic unsynchronized; 
+  mailbox mbx; 
+  class Producer; 
+    task run(); 
+      for (int i=1; i<4; i++) begin 
+        $display("Producer: before put(%0d)", i); 
+        mbx.put(i) ; 
+      end 
+    endtask 
+  endclass 
+  
+  class Consumer; 
+    task run(); 
+      int i; 
+      repeat (3) begin 
+        mbx.get(i) ; // Get integer from mbx 
+        $display("Consumer: after get(%0d)", i); 
+      end 
+    endtask 
+  endclass 
+  
+  Producer p; 
+  Consumer c; 
+  
+  initial begin 
+    // Construct mailbox, producer, consumer 
+    mbx = new(); // Unbounded 
+    p = new() ; 
+    c = new(); 
+    fork // Run the producer and consumer in parallel 
+      p.run() ; 
+      c.run() ; 
+    join 
+  end 
+endprogram    
     
+--------------------------------------------------------------
+// synchronized threads using a bounded mailbox and a peek
+//Sample 7.41 Producer~onsumer synchronized with bounded mailbox 
+program automatic synch_peek; 
+  // Uses Producer from Sample 7.39 
+  mailbox mbx; 
+  class Consumer; 
+    task run(); 
+      int i; 
+      repeat (3) begin 
+        mbx.peek(i); // Peek integer from mbx 
+        $display("Consumer: after get(%0d)", i); 
+        mbx.get(i); // Remove from mbx 
+      end 
+    endtask 
+  endclass 
+  initial begin 
+    // Construct mailbox, producer, consumer 
+    mbx = new(l); // Bounded mailbox - limit 11 
+    p = new () ; 
+    c = new () ; 
+    // Run the producer and consumer in parallel 
+    fork 
+      p.run() ; 
+      c.run() ; 
+    join 
+  end 
+endprogram     
+// the consumer uses the build-in mailbox method peek() to look at the data in mailbox without removing
+// remove data with get()  
+// if the Consumer loop started with get() instead of peek()
+// the transaction would be immediately removed from mailbox
+    
+-----------------------------------------------------------------    
+// synchronizes thread using a mailbox and event
+// can use an event to block the PRoducer after it puts data in the mailbox.
+// the Consumer triggers the event after it consumes the data
+//Sample 7.43 Producer-consumer synchronized with an event 
+program automatic mbx_evt; 
+  event handshake; 
+  class Producer; 
+    task run; 
+      for (int i=1; i<4; i++) begin 
+        $display("Producer: before put (%0d)", i); 
+        mbx.put(i); 
+        @handshake;   // edge-sensitive blocking statement to ensure stop after sending transaction
+        $display("Producer: after put(%0d)", i); 
+      end 
+    endtask 
+  endclass 
+  // Continued in Sample 7.44 
+  
+  class Consumer; 
+    task run; 
+      int i; 
+      repeat (3) begin 
+        mbx.get(i); 
+        $display("Consumer: after get(%0d)", i); 
+        ->handshake; 
+      end 
+    endtask 
+  endclass 
+  initial begin 
+    p = new(); 
+    c = new(); 
+    // Run the producer and consumer in parallel 
+    fork 
+      p.run(); 
+      c.run(); 
+    join 
+  end 
+endprogram     
+ 
+-------------------------------------------------------------    
+// synchronizes thread using 2 mailboxes    
+//Sample 7.46 Producer-consumer synchronized with a mailbox 
+program automatic mbx_mbx2; 
+  mailbox mbx, rtn; 
+  
+  class Producer; 
+    task run(); 
+      int k; 
+      for (int i=1; i<4; i++) begin 
+        $display ("Producer: before put (%0d) ", i); 
+        mbx.put(i); 
+        rtn.get(k); 
+        $display ("Producer: after get (%0d) ", k); 
+      end 
+    endtask 
+  endclass 
+  
+  class Consumer; 
+    task run(); 
+      int i; 
+      repeat(3) begin 
+        $display("Consumer: before get"); 
+        mbx.get(i) ; 
+        $display("Consumer: after get(%0d)", i); 
+        rtn.put(-i) ; 
+      end 
+    endtask 
+  endclass 
+  
+  initial begin 
+    p = new(); 
+    c = new(); 
+    // Run the producer and consumer in parallel 
+    fork 
+      p.run(); 
+      c.run(); 
+    join 
+  end 
+endprogram     
+    
+----------------------------------------------------------------    
+// Sample 7.48 Basic Transactor 
+class Agent; 
+  mailbox gen2agt, agt2drv; 
+  Transaction tr; 
+  
+  function new (mailbox gen2agt, agt2drv); 
+    this.gen2agt = gen2agt; 
+    this.agt2drv = agt2drv; 
+  endfunction 
+  
+  task run(); 
+    forever begin 
+      gen2agt.get(tr); //Get transaction from upstream block 
+      ...              // Do some processing
+      agt2drv.put(tr) ;// Send it to downstream block 
+    end 
+  endtask 
+
+  task wrap_up() ;     //Empty for now 
+  endtask 
+
+endclass    
+    
+//The configuration class allows you to randomize the configuration of your system for every simulation   
+//Sample 7.49 Configuration class 
+class Config; 
+  bit [31:0] run_for_n_trans; 
+  constraint reasonable  {run_for_n_trans inside {[1:1000]};  } 
+endclass    
+    
+//The Environment class. holds the Generator. Agent. Driver, Monitor. Checker. Scoreboard, and Config objects. and the mailboxes between them. 
+//Sample 7.50 Environment class 
+class Environment; 
+  Generator gen;
+  Agent     agt;
+  Driver    drv;
+  Monitor   mon;
+  Checker   chk;
+  Scoreboard scb; 
+  Config     cfg; 
+  mailbox gen2agt, agt2drv, mon2chk; 
+  extern function new(); 
+  extern function void gen_cfg() ; 
+  extern function void build(); 
+  extern task run(); 
+  extern task wrap_up(); 
+endclass 
+    
+function Environment::new(); 
+  cfg = new(); 
+endfunction 
+    
+function void Environment::gen_cfg; 
+  assert(cfg.randomize); 
+endfunction 
+
+function void Environment::build(); 
+  // Initialize mailboxes 
+  gen2agt = new();
+  agt2drv = new();
+  mon2chk = new();
+  // Initialize transactors 
+  gen = new(gen2agt); 
+  agt = new(gen2agt, agt2drv); 
+  dry = new(agt2drv); 
+  mon = new(mon2chk); 
+  chk = new(mon2chk); 
+  scb = new(); 
+endfunction 
+  
+task Environment::run(); 
+  fork 
+    gen.run(cfg.run_for_n_trans) ; 
+    agt.run() ; 
+    drv.run() ; 
+    mon.run() ; 
+    chk.run() ; 
+    scb.run(cfg.run_for_n_trans) ; 
+  join 
+endtask 
+  
+task Environment::wrap_up(); 
+  fork 
+    gen.wrap_up() ; 
+    agt.wrap_up() ; 
+    drv.wrap_up() ; 
+    mon.wrap_up() ; 
+    chk.wrap_up() ; 
+    scb.wrap_up() ; 
+  join 
+endtask    
+    
+//main test
+//Sample 7.51 Basic test program 
+program automatic test; 
+  Environment env; 
+  initial begin 
+    env = new(); 
+    env.gen_cfg(); 
+    env.build (); 
+    env.run(); 
+    env.wrap_up(); 
+  end 
+endprogram    
     
     
