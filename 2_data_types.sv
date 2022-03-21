@@ -264,14 +264,49 @@ end
 // function 'exist' use to check if an element exists
                
 ------------------------------------------------------------
-[ Array Methods ]               
+[ Array Methods ]   
+               
+// Sample 2.23 Creating the sum of an array
+bit on[10]; // Array of single bits
+int total;
+initial begin
+  foreach (on[i])   on[i] = i;  // on[i] gets 0 or 1
+  
+  // Print the single-bit sum
+  $display("on.sum = %Od", on.sum); // on.sum 1
+  
+  // Print the sum using 32-bit total
+  $display("on.sum = %0d", on.sum + 32'd0); // on.sum = 5
+  
+  // Sum the values using 32-bits as total is 32-bits
+  total = on.sum;
+  $display("total = %0d", total); // total = 5
+  
+  // Compare the sum to a 32-bit value
+  if (on.sum >= 32'd5)  // True
+    $display("sum has 5 or more l's");
+  
+  // Compute with 32-bit signed arithimetic
+  $display("int sum=%0d", on.sum with (int'(item));
+end
 
+// if add values of a single-bit array, result is a single bit
 
+// Sample 2.24 Picking a random element from an associative array
+int aa[int], rand_idx, element, count;
+           
+element = $urandom_range(aa.size()-l),
+foreach(aa[i])
+  if (count++ == element) begin
+    rand_idx = i, // Save the associative array index and quit
+    break;
+  end
+ $display ("%0d element aa [%0d] = %0d", element, rand_idx, aa[rand_idx] );
 
+// $urandom_range(array.size()-l) for queues and dynamic arrays, 
+// $urandom_range ($size (array) -1) for fixed arrays, queues, dynamic, and associative arrays.
 
-
-
-
+// If the array was indexed by a string, just change the type of 'idx' to 'string'.           
 
 
 
