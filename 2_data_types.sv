@@ -227,10 +227,44 @@ initial begin
   $display("The array now has %0d elements", assoc.num);
 end
 
+// can use 'first' and 'next' functions in a 'do...while' loop
+// these functions modify the index argument, and reture 0 or 1 depending on whether ant elements are left in array
+               
+// Sample 2.22 Using an associative array with a string index
+    /*
+    Input file contains:
+          42 min address
+        1492 max address
+    */              
+int switch [string], min_address, max_address;
+initial begin
+  int i, r, file;
+  string s;
+  file = $fopen("switch.txt", "r");
+  while ( ! $feof(file) )  begin
+    r = $fscanf(file, "%d %s", i, s);
+    switch[s] = i;
+  end
+  $fclose(file);
+  
+  // Get the min address, default is 0
+  min_address = switch ["min_address"];
+  
+  // Get the max address, default = 1000
+  if (switch.exists("max_address"))
+    max_address = switch["max_address"];
+  else
+    max_address = 1000;
 
+  // Print all switches
+  foreach (switch[s])
+    $display("switch['%s']=%0d", s, switch[s]);
+end
 
-
-
+// function 'exist' use to check if an element exists
+               
+------------------------------------------------------------
+[ Array Methods ]               
 
 
 
