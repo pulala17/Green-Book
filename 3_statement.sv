@@ -70,4 +70,73 @@ end
     the '@data' statement would not trigger until the end of the bus transaction. 
 */
     
+//Sampie 3.12 Function with default argument values
+function void print checksum( ref bit [31:0] a[],
+                              input bit [31:0] low 0,
+                              input int high = -1);
+  bit [31:0] checksum = 0;
+  
+  if (high == -1 || high >= a.size() )
+    high = a.size()-l;
+  for (int i=low; i<=high; i++)
+    checksum += a[i];
+  $display ("The array checksum is %0d", sum);
+endfunction    
+
+// Sample 3.13 Using default argument values
+print_checksum(a) ;        // Checksum a[O:size() -1] - default
+print_checksum(a, 2, 4) ;  // Checksum a[2:4]
+print_checksum(a, 1) ;     // Start at 1
+print_checksum(a,, 2) ;     // Checksum a [0: 2]
+print_checksum();          // Compile error: a has no default    
+
+    
+//Sampie 3.14 Binding arguments by name
+task many (input int a=l, b=2, c=3, d=4);
+  $display("%0d %0d %0d %0d", a, b, c, d);
+endtask
+initial begin        // a b c d
+  many(6, 7, 8, 9) ; // 6 7 8 9 Specify all values
+  many() ;           // 1 2 3 4 Use defaults
+  many(.c(5)) ;      // 1 2 5 4 Only specify c
+  many(, 6, .d(8));  // 1 6 3 8 Mix styles
+end
+    
+    
+// Sample 3.16 Task header with additional array argument
+    task sticky ( ref int array[50],
+                 int a,b);
+      // a and b take the direction of the previous argument: 'ref'
+    task sticky ( ref int array[50],
+                  input int a,b); // be explicit
+      
+// Sample 3.19 Return in a task
+task load_array(int len, ref int array[]);
+  if (len <= 0) begin
+  $display ("Bad len");
+  return;
+  end
+  // Code for the rest of the task
+  ...
+endtask
+      
+      
+// Sample 3.20 returning an array from a function with a typedef
+      typedef int fixed_array5[5];
+      fixed_array5 f5;
+      
+      function fixed_array5 init(int start)
+        foreach (init[i])
+          init[i] = i + start;
+      endfunction
+      
+      initial begin
+        f5 = init(5);
+        foreach (f5[i])
+          $display ( "f5[%0d] = %0d", i, f5[i]);
+      end
+      
+      
+      
+    
     
