@@ -308,14 +308,47 @@ foreach(aa[i])
 
 // If the array was indexed by a string, just change the type of 'idx' to 'string'.           
 
+--------------------------------------------------------------------------------------
+// Sample 2.25 Array locator methods: min, max, unique
+int f[6] = '{1,6,2,6,8,6};
+int d[]  = '{2,4,6,8,10}; 
+int q[$] = {1,3,5,7}, tq[$];
+
+tq = q.min();       // {1}
+tq = q.max();       // {10}
+tq = f.unique();    //{1,6,2,8}
+
+// 'unique' returns a queue of the unique values from the array
+
+// Sample 2.26 Array locator methods: find
+int d[] = `{9 ,1, 8, 3, 4, 4}, tq[$] ;
+// Find all elements greater than 3
+tq = d.find with (item > 3);   //{9,8,4,4}
+// Equivalent code
+tq.delete();
+foreach (d[i])
+  if (d[i] > 3)  tq.push_back(d[i]);
+           
+tq = d.find_index with (item > 3);        // {0,2,4,5}
+tq = d.find_first with (item > 99);       // {}     
+tq = d.find first_index with (item==8);   // {2} d[2]=8
+tq = d.find_last with (item==4);          // {4}
+tq = d.find_last_index with (item==4);    // {5} d[5]=4
 
 
+// These are equivalent. Declaring the iterator argument
+tq d.find first with (item==4);
+tq d.find first() with (item==4) ;
+tq d.find first(item) with (item==4); 
+tq d.find first(x) with (x==4) ;
 
-
-
-
-
-
+// Sample 2.28 Array locator methods
+int count, total, d[] = '{9,1,8,3,4,4};
+ count = d.sum with (item > 7) ;  // 2 : {9, 8}   compares the item with 7. return 1 or 0
+total = d.sum with ( (item > 7) * item) ;  // 17= 9+8
+count = d.sum with (item < 8) ;  // 4 : {1, 3, 4, 4}
+total = d.sum with (item < 8 ? item : 0) ;  // 12=1+3+4+4
+count = d.sum with (item -- 4) ;    // 2 : {4, 4}
 
 
 
