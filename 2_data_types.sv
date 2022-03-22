@@ -566,12 +566,78 @@ color_e color;
 color = color.first;
 do
   begin
-    $display("Color = %Od/%s", color, color.name);
+    $display("Color = %0d/%s", color, color.name);
     color = color.next;
   end
 while (color != color.first); //Done at wrap-around
 
+// Sample 2.51 Assignments between integers and enumerated types
+typedef enum {RED, BLUE, GREEN} COLOR_E;
+COLOR_E color, c2;
+int c;
+initial begin
+  color = BLUE;           // Set to known good value
+  c = color;              // Convert from enum to int (1)
+  c++;                    // Increment int (2)
+  if (! $cast(color, c) ) // Cast int back to enum
+    $display("Cast failed for c=%0d", c);
+  $display("Color is %0d / %s", color, color.name);
+  e++;                    // 3 is out-of-bounds for enum
+  c2 = COLOR_E'(c) ;      // No type checking
+  $display("Color is %0d / %s", color, color.name);
+end
+         
+    // $cast() assign the right value to the left variable,
+    // if succeeds, $cast() returns 1
+    // if fails, no assignment is made and the function returns 0
+    
+    // can cast the value using ' type`(val) '
+    // it does not do any type checking, the results may be out-of-bounds
+         
+-----------------------------------------------------------------------------
+  STRING
+/*
+Memory for strings is dynamically allocated, 
+so you do not have to worry about running out of space to store the string.
+*/
+// Sample 2.53 String methods
+string s;
+initial begin
+  s = "IEEE";
+  
+  $display( s.getc(0) ) ;   // display: 73('I')
+  $display( s.tolower());   // display: ieee
+  
+  s.putc( s.len()-1, "-"); // change ' '-> '-'
+  s = {s, "p1800"};        // "IEEE-P1800"
+  
+  $display( s.substr (2, 5) ); // Display: EE-P
+  
+  // Create temporary string, note format
+  my_log_rtn($psprintf ("%s %5d", s, 42));
+end
+task my_log{string message);
+  //Print a message to a log
+  $display( "@%0t: %S", $time, message);
+endtask
+         
+/*
+The function 'getc(N)' returns the byte at location N, 
+and 'toupper' returns an upper-case copy of the string 
+and 'tolower' returns a lowercase copy. 
+The curly braces {} are used for concatenation. 
+The task 'putc(M,C)' writes a byte c into a string at location M, which must be between 0 and the length as given by 'len'
+The 'substr (start, end)' function extracts characters from location start to end.
+         
 
++ Queues             work well for creating scoreboards for which you constantly need to add and remove data. 
++ Dynamic arrays     allow you to choose the array size at run-time for maximum testbench flexibility. 
++ Associative arrays are used for sparse memories and some scoreboards with a single index. 
++ Enumerated types   make your code easier to read and write by creating groups of named constants.         
+         
+         
+         
+         
     
     
 
