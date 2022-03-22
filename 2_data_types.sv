@@ -413,7 +413,166 @@ Property: translate a string to a fixed value.
 Read string from a file, and then look up the commands or opcodes in an associative array using the command as a string index.
 */
 --------------------------------------------------------------------------------
+TYPEDEF
+ //Sample 2.33 User-defined type in SystemVeriiog
+parameter OPSIZE = 8;
+typedef reg [OPSIZE-l:0] opreg_t; 
+opreg_t op_a, op_b;
+           
+typedef bit [31:0] uint;    // 32-bit unsigned 2-state
+typedef int unsigned uint;  //  Equivalent definition        
+
+//Sample 2.35 User-defined array type
+typedef int fixed_array5[5];
+fixed_array5 f5;
+initial begin
+  foreach (f5[i])  f5[i] = i;
+end           
+           
+----------------------------------------------------------
+           //Sample 2.38 Initializing a struct
+initial begin
+  typedef struct {int a;
+                  byte b;
+                  shortint c;
+                  int d;} my_struct_s;
+  my_struct_s st '{32'haaaa_aaaad,
+                    8'hbb,
+                   16'hcccc,
+                   32'hdddd_dddd};
+  $display("str = %x %x %x %x ", st.a, st.b, st.c, st.d);
+end
+
+// Sample 2.39 Using typedef to create a union
+typedef union { int i; real f; } num_u;
+num_u un;
+un.f = 0.0; // set value in floating point format           
+// Unions are useful when frequently need to read and write a register in several different formats.           
+           
+// Sample 2.40 Packed structure
+typedef struct packed {bit [7:0] r, g, b;} pixel_p_s;
+pixel_p_s my_pixel;
+// a packed structure is stored as a contiguous set of bits with no unesed space.
+// packed structures are used when underlying bits represent a numerical value,
+// or when trying to reduce memory usage
+           
+/* 
+Packed Structure:   if make aggregate operations on the structure, such as copying the entire structure
+Unpacked Structure: if code accesses the individual members more than the entire structure
+*/
+           
+-------------------------------------------------------------------------------------------------------           
+CAST
+// Sample 2.41 Converting between int and real with static cast
+int i;
+real r; 
+i = int' (10.0 - 0.1); // cast is optional
+r = real'(42);         // cast is optional           
+           
+// Sample 2.42 Basic streaming operator
+initial begin
+  int h;
+  bit [7:0] b, g[4], j[4] = '{8'ha, 8'hb, 8'hc, 8'hd};
+  bit [7:0] g, r, s, t;
+  
+  h = { >> {j} };        // 0a0b0c0d - pack array into int
+  h = { << {j} };        // b030d050 reverse bits
+  h = { << byte {j} };   // 0d0c0b0a reverse bytes
+  g = { << byte {j} };   // 0d, 0c, 0b, 0a unpack into array
+  b = { << {8'b0011_0101}   };  // 1010_1100 reverse bits
+  b = { << 4 {8'b0011_0101} };  // 0101_0011 reverse nibble
+  { >> {q, r, s, t} } = j;      // Scatter j into bytes
+  h = { >> {t, s, r, g} };      // Gather bytes into h
+end           
+           
+/* 
+The >> operator streams data from left to right 
+The << operator streams data from right to left
+*/           
+           
+// Sample 2.43 Converting between queues with streaming operator
+initial begin
+  bit [15:0] wq[$] = {16'h1234, 16'h5678};
+  bit [ 7:0] bq[$];
+  
+  // Convert word array to byte
+  bq = { >> {wq} }; // 12 34 56 78
+  
+  // Convert byte array to words
+  bq {8'h98, 8'h76, 8'h54, 8'h32};
+  wq = { >> {bq} }; // 9876 5432
+end           
+           
+// Sample 2.44 Converting between a structure and array with streaming operators
+initial begin
+  typedef struct {int a;
+                  byte b;
+                  shortint c;
+                  int d;} my_struct_s;
+  my_struct_s st = `{32'haaaa_aaaa,
+                     8'hbb,
+                     16'hcccc,
+                     32'hdddd_dddd} ;
+  byte b[];
+  
+  // Covert from struct to byte array
+  b = { >> {st} };     // {aa aa aa aa bb cc cc dd dd dd dd}
+  
+  // Convert from byte array to a struct
+  b = '{ 8'h11, 8'h22, 8'h33, 8'h44, 8'h55, 8'h66, 8'h77,
+         8'h88, 8'h99, 8'haa, 8'hbb};
+  st = { >> {b} };      // st = 11223344, 55, 6677, 8899aabb
+end
+          
+           
+---------------------------------------------------------------------------------------
+           ENUMERATED TYPE
+// Sample 2.46 Enumerated types
+           
+// Create data type for values 0, 1, 2
+typedef enum {INIT, DECODE, IDLE} fsmstate_e;
+fsmstate_e pstate, nstate; // declare typed variables
+           
+initial begin
+  case (pstate)
+    IDLE:     nstate = INIT;    // data assignment
+    INIT:     nstate = DECODE;
+    default:  nstate = IDLE
+  endcase
+  $display("Next state is %S", nstate.name()); // Display symbolic state name
+end           
+    // get the string representation of an enumerated variable with the built-in function name()
+    
+typedef enum {INIT, DECODE=2, IDLE} fsmtype_e;           
+// default INIT=0, DECODE = 2, IDLE = 3
+// actual values default to integers starting at 0 and then increase.
+// an enumerated type is stored as int unless specify otherwise
+/*    
+• first() returns the first member of the enumeration.
+• last()  returns the last member of the enumeration.
+• next()  returns the next element of the enumeration.
+• next(N) returns the Nth next element.
+• prev()  returns the previous element of the enumeration.
+• prev(N) returns the Nth previous element.
+
+get the starting number with 'first' and the next member with 'next'
+If you use 'current != current.last',  the loop ends before using the last value. 
+If you use 'current <= current.last',  you get an infinite loop, as next never gives you a value that is greater than the final value.    
+*/
+    
+//Sample 2.50 Stepping through all enumerated members
+typedef enum {RED, BLUE, GREEN} color_e;
+color_e color;
+color = color.first;
+do
+  begin
+    $display("Color = %Od/%s", color, color.name);
+    color = color.next;
+  end
+while (color != color.first); //Done at wrap-around
 
 
+    
+    
 
 
