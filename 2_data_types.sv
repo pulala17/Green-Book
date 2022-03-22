@@ -344,21 +344,75 @@ tq d.find first(x) with (x==4) ;
 
 // Sample 2.28 Array locator methods
 int count, total, d[] = '{9,1,8,3,4,4};
- count = d.sum with (item > 7) ;  // 2 : {9, 8}   compares the item with 7. return 1 or 0
-total = d.sum with ( (item > 7) * item) ;  // 17= 9+8
-count = d.sum with (item < 8) ;  // 4 : {1, 3, 4, 4}
+count = d.sum with (item > 7) ;             // 2 : {9, 8}   compares the item with 7. return 1 or 0
+total = d.sum with ( (item > 7) * item) ;   // 17= 9+8
+count = d.sum with (item < 8) ;             // 4 : {1, 3, 4, 4}
 total = d.sum with (item < 8 ? item : 0) ;  // 12=1+3+4+4
-count = d.sum with (item -- 4) ;    // 2 : {4, 4}
+count = d.sum with (item -- 4) ;            // 2 : {4, 4}
 
+// Sample 2.29 Sorting an array
+           int d[] =         '{9,1,8,3,4,4};
+           d.reverse();   // '{4,4,3,8,1,9}
+           d.sort();      // '{1,3,4,4,8,9}
+           d.rsort();     // '{9,8,4,4,3,1}
+           d.shuffle();   // '{9,4,3,8,1,4}
 
+// Sample 2.30 Sorting an array of structures
+struct packed { byte red, green, blue; } c[];
+initial begin
+  c = new[100]; // Allocate 100 pixels
+  foreach(c[i])
+    c[i] = $urandom; // Fill with random values
+  
+  c.sort with (item.red); // sort using red only
+  // sort by green value then blue
+  c.sort(x) with ({x.green, x.blue});
+end
 
+// Sample 2.31 A scoreboard with array methods
+typedef struct packed
+    {bit [7:0] addr;
+     bit [7:0] pr;
+     bit [15:0] data; } Packet;
+Packet scb[$];
+function void check_addr(bit [7:0] addr);
+  int intq[$];
+  intq = scb.find_index() with (item.addr == addr);  
+  // 'find_index()' returns an int queue
+  case (intq.size())
+    0: $display("Addr %h not found in scoreboard", addr);
+    1: scb.delete(intq[O]);
+    default:
+      $display("ERROR: Multiple hits for addr %h", addr);
+  endcase
+endfunction : check_addr
 
-
-
-
-
-
-
+---------------------------------------------------------
+// Queues are slightly less efficient to access than fixed-size or dynamic arrays 
+//           because of additional pointers.           
+/*
+• Network packets. 
+Properties: fixed size, accessed sequentially. Use a fixedsize or dynamic array for fixed- or variable-size packets.
+• Scoreboard of expected values. 
+Properties: size not known until run-time. accessed by value, and a constantly changing size.  
+In general, use a queue, as you are continually adding and deleting elements during simulation. 
+If you can give every transaction a fixed id, such as 1,2,3 .... , you could use this as an index into the queue. 
+If your transaction is filled with random values, you can just push them into a queue and search for unique values. 
+If the scoreboard may have hundreds of elements, 
+and you are often inserting and deleting them from the middle, an associative array may be faster.
+• Sorted structures. 
+Use a queue if the data comes out in a predictable order.
+or an associative array if the order is unspecified. 
+If the scoreboard never needs to be searched, just store the expected values in a mailbox
+• Modeling very large memories, greater than a million entries. 
+If you do not need every location, use an associative array as a sparse memory. 
+If you do need every location, try a different approach where you do not need so much live data. 
+Still stuck? Be sure to use 2-state values packed into 32-bits.
+• Command names or opcodes from a file. 
+Property: translate a string to a fixed value. 
+Read string from a file, and then look up the commands or opcodes in an associative array using the command as a string index.
+*/
+--------------------------------------------------------------------------------
 
 
 
