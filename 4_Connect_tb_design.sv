@@ -502,11 +502,11 @@ endmodule
     
 //Sample 4.46 Top-level netlist with interface
 module top;
-  bit elk, rst;
+  bit clk, rst;
   always #5 clk = !clk;
   Rx_if Rx0 (clk), Rxl (clk), Rx2 (clk), Rx3 (clk);
   Tx_if Tx0 (clk), Txl (clk), Tx2 (clk), Tx3 (clk);
-  atm router al (Rx0, Rxl, Rx2, Rx3,        // or just (.*)
+  atm_router al (Rx0, Rxl, Rx2, Rx3,        // or just (.*)
                  Tx0, Txl, Tx2, Tx3, clk, rst);
   test       tl (Rx0, Rxl, Rx2, Rx3,       // or just (.*)
                  Tx0, Txl, Tx2, Tx3, elk, rst);
@@ -533,7 +533,7 @@ program test(Rx_if.TB Rx0, Rxl, Rx2, Rx3,
     Tx0.cb.clav <= 1;         //Assert ready to receive
     wait (Tx0.cb.soc == 1);   //Wait for Start of Cell
 
-    for (int i=0; i<ATM_CELL_SIZE; i++) begin
+    for (int i=0; i<`ATM_CELL_SIZE; i++) begin
       wait (Tx0.cb.en == 0); // Wait for enable
         @(Tx0.cb);
       bytes[i] = Tx0.cb.data;
@@ -542,7 +542,125 @@ program test(Rx_if.TB Rx0, Rxl, Rx2, Rx3,
     end
   endtask : receive_cell0
 endprogram : test
-   
+ 
+//Sample 10.4 Top level module with array of interfaces
+module top;
+  logie clk, rst;
+  Rx_if Rx[4] (clk);
+  Tx_if Tx[4] (clk);
+  test       t1 (Rx, Tx, rst);
+  atm_router a1 (Rx[0], Rx[1], Rx[2], Rx[3] ,
+                 Tx[0], Tx[1], Tx[2], Tx[3] ,
+                 clk, rst);
+  initial begin
+    clk = 0;
+    forever #20 clk = !clk;
+  end
+endmodule : top    
+    
+// Sample 10.5 Testbench using virtual interfaces
+program automatic test(Rx_if.TB Rx0, Rxl, Rx2, Rx3,
+                       Tx_if.TB Tx0, Txl, Tx2, Tx3,
+                       output logic rst);
+  Driver drv[4] ;
+  Monitor mon[4];
+  Scoreboard scb[4];
+  virtual Rx_if.TB vRx[4] = '{Rx0, Rxl, Rx2, Rx3};
+  virtual Tx_if.TB vTx[4] = '{Tx0, Txl, Tx2, TX3};
+  initial begin
+    foreach (scb[i]) begin
+      scb[i] = new(i);
+      drv[i] = new(scb[i].exp_mbx, i, vRx[i]);
+      mon[i] = new(scb[i].rcv_mbx, i, vTx[i]);
+    end
+    ...
+  end
+endprogram   
+// You can also skip the virtual interface array variables, and make an array in the port list.   
+// Sample 10.6 Testbench using virtual interfaces
+program automatic test(Rx_if.TB Rx[4], Tx_if.TB Tx[4],
+                       output logic rst);
+...
+  initial begin
+    foreach (scb[i]) begin
+      scb[i] = new(i);
+      drv[i] = new(scb[i].exp_mbx, i, Rx[i]);
+      mon[i] = new(scb[i].rcv_mbx, i, Tx[i]);
+    end
+  end
+endprogram   
+    
+// Sample 10.7 Driver class using virtual interfaces
+class Driver;
+  int stream_id;
+  bit done = 0;
+  mailbox exp_mbx;
+  virtual Rx_if.TB Rx;
+  
+  function new (input mailbox exp_mbx,
+                input int     stream_id,
+                input virtual Rx_if.TB Rx);
+    this.exp_mbx = exp_mbx;
+    this.stream_id = stream_id;
+    this.Rx = Rx;
+  endfunction
+  
+  task run (input int ncells, input event driver done) ;
+    ATM_Cell ac;
+    fork // Spawn this as a separate thread
+      begin
+        // Initialize output signals
+        Rx.cb.clav <= 0;
+        Rx.cb.soc  <= 0;
+        @Rx.cb;
+        
+        // Drive cells until the last one is sent
+        repeat (ncells) begin
+          ac = new
+          assert (ac.randomize) ;
+          if (ac.eot_cell) break; // End transmission
+              drive_cell (ac) ;
+        end
+        $display("@%0t: Driver::run Driver [%0d] is done", $time, stream_id);
+        -> driver done;
+      end
+    join_none
+  endtask : run
+  
+  task drive_cell (input ATM Cell ac);
+    bit [7:0] bytes[];
+    #ac.delay;
+    ac.byte_pack(bytes) ;
+    $display("@%0t: Driver::drive cell(%0d) vci=%h",
+                $time, stream_id, ac.vci);
+    // Wait to start on a new cycle
+    @Rx.cb;
+    Rx.cb.clav <= 1;      // assert ready to xfr
+    do
+      @Rx.cb;
+    while (Rx.cb.en != 0)
+    
+    Rx.cb.soc <= 1;           // start of cell
+    Rx.cb.data <= bytes[0];   // drive first byte
+    @Rx.cb;
+    Rx.cb.soc <= 0;           // start of cell done
+    Rx.cb.data <= bytes[1];   // drive first byte
+    for (int i=2; i<`ATM_SIZE; i++) begin
+      @Rx.cb;
+      Rx.cb.data <= bytes[i];
+    end
+    
+    @Rx.cb;
+    Rx.cb.soc <= l'bz;   // tristate SOC at end
+    Rx.cb.clav <= 0;
+    Rx.cb.data <= 8'bz;  // Clear data lines
+    $display("@%0t: Driver::drive cell(%0d) finish", $time, stream_id);
+    
+    // Send cell to scoreboard
+    exp_mbx.put(ac) ;
+  endtask : drive_cell_t
+endclass : Driver   
+    
 -------------------------------------------------    
 // Sample 4.48 A final block
 program test;
