@@ -126,17 +126,93 @@ endtask
       fixed_array5 f5;
       
       function fixed_array5 init(int start)
-        foreach (init[i])
-          init[i] = i + start;
+        foreach (init[i])   init[i] = i + start;
       endfunction
       
       initial begin
         f5 = init(5);
-        foreach (f5[i])
-          $display ( "f5[%0d] = %0d", i, f5[i]);
+        foreach (f5[i])   $display ( "f5[%0d] = %0d", i, f5[i]);
       end
       
       
+// Sample 3.21 passing an array to a function as a ref argument
+function void init(ref int f[5], input int start);
+  foreach (f[i])   f[i] = i + start;
+endfunction
       
+int fa[5] ;
+      
+initial begin
+  init (fa, 5) ;
+  foreach (fa[i])  $display (" fa[%0d] = %0d ", i,fa[i] );
+end
+   
     
-    
+// Sample 3.22 Speeifying automatie storage in program blocks
+// the task monitors when data are written into memory
+program automatie test;
+  task wait_for_mem(input [31:0] addr, expect_data,
+                    output success);
+    while (bus.addr != addr)
+      @(bus.addr);
+    success = (bus.data == expect_data);
+  endtask
+  ...
+endprogram    
+/* Without the automatie modifier, 
+   if you called 'wait_for_mem' a second time while the first was still waiting, 
+   the second call would overwrite the two arguments.      
+*/
+      
+// Variables are actually initialized before the start of simulation      
+// if initialize a variable in the declaration, remember to declare the pogram as 'automatic'       
+      
+-----------------------------------------------------------------------------------------------
+ TIME VALUE
+/* When you rely on the 'timeseale compiler directive. 
+   you must compile the files in the proper order to be sure all the delays use the proper scale and precision
+      
+   The 'timeunit' and 'timepreeision' decIarations eliminate this ambiguity 
+      by precisely specifying the values for every module.   
+      and must put them in every module that has a delay.
+*/      
+      
+// Sam pie 3.26 Time literals and $timeformat
+module timing;
+  timeunit 1ns;
+  timeprecision 1ps;
+  initial begin
+    $timeformat(-9, 3, "ns" , 8);
+    #1     $disp1ay("%t", $realtime); // 1.000ns
+    #2ns   $display("%t", $realtime); // 3.000ns
+    #0.1ns $display("%t", $realtime); // 3.100ns
+    #41ps  $display("%t", $realtime); // 3.141ns
+  end
+endmodule     
+/* The four arguments to $timeformat are the scaling factor 
+      (-9 for nanoseconds, -12 for picoseconds), 
+      the number of digits to the right of the decimal point, 
+      astring to print after the time value, and the minimum field width.  
+ */    
+      
+// Sample3.27 Time variable and rounding
+      `timescale 1ps/1ps
+      module ps;
+        initial begin
+          real rdelay = 800fs;    // stored as 0.800
+          time delay  = 800fs;    // rounded to 1
+          $timeformat(-15, 0, "fs", 5);
+          #rdelay;                // delay rounded to 1ps
+          $display("%t",rdelay);  // "800fs"
+          #tdelay;                // delay another 1ps
+          $display("%t",tdelay);  // "1000fs"
+        end
+      endmodule
+      // the values are scaled and rounded according to the current time scale and precision
+      // variables of type 'time' cannot hold fractional delays as they are just 64-bit intrgers, and so delays will be rounded.
+      
+      // '$time' returns an integer scaled to the time precision of the current module, but missing any fractional units,
+      // '$realtime' returns a real number with the complete time value, including fractions
+      
+      
+  
