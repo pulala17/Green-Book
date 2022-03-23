@@ -195,3 +195,54 @@ module test(asynch_if ifc);
     local wire <= 1; // but drive wire through assign
   end
 endmodule   
+
+// Sample 4.17 Testbench using interface with clocking block
+program automatic test (arb_if.TEST arbif);
+  ...
+  initial begin
+    arbif.cb.request <= 2'b01;
+    $display("@%0t: Drove req=01", $time);
+    repeat (2) @arbif.cb;
+    if (arbif.cb.grant != 2'b01)
+      $display("@%0t: al: grant != 2'b01", $time);
+    end
+    ...
+  end
+endprogram : test    
+    
+//Sample 4.18 Signal synchronization
+program automatic test(bus_if.TB bus);
+  initial begin
+    @bus.cb;                  // continue on active edge in clocking block
+    repeat(3) @bus.cb;       // wait for 3 active edge
+    @bus.cb.grant;            // continue on any edge
+    @(posedge bus.cb.grant);  // continue on posedge
+    @(negedge bus.cb.grant);  // continue on negedge
+    wait (bus.cb.grant==l);   // wait for expression, no delay is already true
+    @(posedge bus.cb.grant or
+      negedge bus.rst);       // wait for several signals
+  end
+endprogram
+
+// Sample 4.19 Synchronous interface sample and drive from module
+'timescale 1ns/1ns
+program test(arb_if.TEST arbif);
+  initial begin
+    $monitor("@%0t: grant=%h", $time, arbif.cb.grant);
+    #50ns $display("End of test");
+  end
+endprogram
+    
+module arb(arb_if.DUT arbif);
+  initial begin
+    #7  arbif.grant = 1; // @ 7ns
+    #10 arbif.grant = 2; // @ 17ns
+    #8  arbif.grant = 3; // @ 25ns
+  end
+endmodule    
+// The arb module drives grant to 1 and 2 in the middle of a cycle, and then to 3 exactly at the clock edge.    
+    
+    
+    
+    
+    
